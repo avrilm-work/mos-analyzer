@@ -48,7 +48,7 @@ if len(numeric_cols) == 0:
     st.stop()
 
 default_metrics = numeric_cols[:4] if len(numeric_cols) >= 4 else numeric_cols
-selected_metrics = st.sidebar.multiselect("Select Metrics", numeric_cols, default=default_metrics)
+selected_metrics = st.sidebar.multiselect("Select Metrics", numeric_cols, default=default_metrics, key="selected_metrics_list")
 
 mos_inputs = {}
 if len(selected_metrics) > 0:
@@ -76,8 +76,9 @@ except Exception as e:
     st.stop()
 
 st.sidebar.markdown("---")
-st.sidebar.header("4. Save Scenario")
-scenario_name = st.sidebar.text_input("Name this scenario (e.g., 'Baseline'):")
+st.sidebar.header("4. Manage Scenarios")
+
+scenario_name = st.sidebar.text_input("Name a new scenario to save:")
 if st.sidebar.button("Save Current Results"):
     if 'scenarios' not in st.session_state:
         st.session_state.scenarios = {}
@@ -89,6 +90,20 @@ if st.sidebar.button("Save Current Results"):
         st.sidebar.success(f"Scenario '{scenario_name}' saved! Check the Compare tab.")
     else:
         st.sidebar.error("Provide a scenario name first.")
+
+if 'scenarios' in st.session_state and len(st.session_state.scenarios) > 0:
+    st.sidebar.markdown("---")
+    saved_names = list(st.session_state.scenarios.keys())
+    load_name = st.sidebar.selectbox("Load a saved scenario:", ["-- Select --"] + saved_names)
+    
+    def apply_scenario(name):
+        if name != "-- Select --":
+            saved_inputs = st.session_state.scenarios[name]['inputs']
+            st.session_state["selected_metrics_list"] = list(saved_inputs.keys())
+            for metric, weight in saved_inputs.items():
+                st.session_state[f"w_{metric}"] = weight
+                
+    st.sidebar.button("Load Settings", on_click=apply_scenario, args=(load_name,))
 
 if 'scenarios' not in st.session_state:
     st.session_state.scenarios = {}
