@@ -145,13 +145,13 @@ if not halt:
         st.subheader("MOS by Quintile")
         try:
             chart = plot_mos_quintiles(mos_df)
-            st.altair_chart(chart, use_container_width=True)
+            st.altair_chart(chart, width="stretch")
         except Exception as e:
             st.error(f"Error plotting data: {e}")
 
     with tab2:
         st.subheader("Calculated MOS Results")
-        st.dataframe(mos_df, use_container_width=True)
+        st.dataframe(mos_df, width="stretch")
         csv = mos_df.to_csv(index=False).encode('utf-8')
         st.download_button(
             label="Download MOS Results as CSV",
@@ -168,14 +168,14 @@ if not halt:
                 
                 st.markdown("#### Leave-One-Out Sensitivity")
                 st.caption("→ **Higher rank correlation** = rankings more stable without that input.  \n→ **Higher avg rank shift** = that input was driving more differentiation.")
-                st.dataframe(sens_res['loo'], use_container_width=True)
+                st.dataframe(sens_res['loo'], width="stretch")
                 
                 st.markdown("#### Weight Perturbation (±5% and ±10%)")
-                st.dataframe(sens_res['perturb'], use_container_width=True)
+                st.dataframe(sens_res['perturb'], width="stretch")
                 
                 st.markdown("#### Rank Stability (Top 25 ZIPs in Base)")
                 st.caption("→ **Small rank range + low std dev** = stable, high-confidence ZIP.  \n→ **Large rank range** = ZIP ranking is sensitive to weight choices.")
-                st.dataframe(sens_res['stability'], use_container_width=True)
+                st.dataframe(sens_res['stability'], width="stretch")
         else:
             st.info("Sensitivity analysis requires at least 2 metrics.")
 
