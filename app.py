@@ -75,7 +75,25 @@ except Exception as e:
     st.error(f"Error computing MOS: {e}")
     st.stop()
 
-tab1, tab2, tab3 = st.tabs(["📊 Visualization", "📋 Data Table", "🔍 Sensitivity Analysis"])
+st.sidebar.markdown("---")
+st.sidebar.header("4. Save Scenario")
+scenario_name = st.sidebar.text_input("Name this scenario (e.g., 'Baseline'):")
+if st.sidebar.button("Save Current Results"):
+    if 'scenarios' not in st.session_state:
+        st.session_state.scenarios = {}
+    if scenario_name:
+        st.session_state.scenarios[scenario_name] = {
+            'inputs': mos_inputs,
+            'df': mos_df.copy()
+        }
+        st.sidebar.success(f"Scenario '{scenario_name}' saved! Check the Compare tab.")
+    else:
+        st.sidebar.error("Provide a scenario name first.")
+
+if 'scenarios' not in st.session_state:
+    st.session_state.scenarios = {}
+
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Visualization", "📋 Data Table", "🔍 Sensitivity Analysis", "🔄 Compare Scenarios"])
 
 with tab1:
     st.subheader("MOS by Quintile")
@@ -114,3 +132,28 @@ with tab3:
             st.dataframe(sens_res['stability'], use_container_width=True)
     else:
         st.info("Sensitivity analysis requires at least 2 metrics.")
+
+with tab4:
+    st.subheader("Compare Saved Scenarios")
+    if len(st.session_state.scenarios) < 2:
+        st.info("Save at least 2 scenarios using the sidebar to compare them here.")
+    else:
+        saved_names = list(st.session_state.scenarios.keys())
+        selected_for_comp = st.multiselect("Select Scenarios to Compare", saved_names, default=saved_names)
+        
+        if len(selected_for_comp) > 0:
+            comp_metrics = []
+            for name in selected_for_comp:
+                df_s = st.session_state.scenarios[name]['df']
+                s = df_s.set_index('Zip')['MOS Rank'].rename(f"{name} (Rank)")
+                comp_metrics.append(s)
+            
+            comp_df = pd.concat(comp_metrics, axis=1).reset_index()
+            
+            example_df = st.session_state.scenarios[selected_for_comp[0]]['df']
+            if 'Market' in example_df.columns:
+                comp_df = comp_df.merge(example_df[['Zip', 'Market']], on='Zip', how='left')
+                cols = ['Zip', 'Market'] + [c for c in comp_df.columns if c not in ['Zip', 'Market']]
+                comp_df = comp_df[cols]
+                
+            st.dataframe(comp_df, use_container_width=True)
