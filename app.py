@@ -17,6 +17,18 @@ if 'scenarios' not in st.session_state:
                 'Avg_Monthly Move Rate': 0.2
             },
             "df": None
+        },
+        "MOS Core 7": {
+            "inputs": {
+                'Renter Occupancy Share': 0.2,
+                'Mover Rate 2019-25': 0.2,
+                'HU Growth Rate 2020-25': 0.2,
+                'Avg_Monthly Move Rate': 0.15,
+                '1-2 Person HH Share': 0.05,
+                '15-34 Age Householder Share': 0.05,
+                'Log Pop Density': 0.15
+            },
+            "df": None
         }
     }
 
@@ -30,7 +42,14 @@ def load_dummy_data():
         'Housing Starts': np.random.uniform(10, 500, n),
         'Job Growth %': np.random.uniform(-2, 8, n),
         'Migration Net': np.random.uniform(-1000, 5000, n),
-        'Search Volume': np.random.uniform(500, 20000, n)
+        'Search Volume': np.random.uniform(500, 20000, n),
+        'Renter Occupancy Share': np.random.uniform(0.1, 0.9, n),
+        'Mover Rate 2019-25': np.random.uniform(0.05, 0.5, n),
+        'HU Growth Rate 2020-25': np.random.uniform(-0.05, 0.3, n),
+        'Avg_Monthly Move Rate': np.random.uniform(0.01, 0.1, n),
+        '1-2 Person HH Share': np.random.uniform(0.2, 0.8, n),
+        '15-34 Age Householder Share': np.random.uniform(0.1, 0.6, n),
+        'Log Pop Density': np.random.uniform(2.0, 10.0, n)
     })
     return df
 
@@ -188,25 +207,35 @@ if not halt:
             selected_for_comp = st.multiselect("Select Scenarios to Compare", saved_names, default=saved_names)
             
             if len(selected_for_comp) > 0:
-                comp_metrics = []
+                mos_metrics = []
+                rank_metrics = []
                 example_df = None
                 for name in selected_for_comp:
                     if st.session_state.scenarios[name].get('df') is not None:
                         df_s = st.session_state.scenarios[name]['df']
-                        s = df_s.set_index('Zip')['MOS Rank'].rename(f"{name} (Rank)")
-                        comp_metrics.append(s)
+                        mos_s = df_s.set_index('Zip')['MOS'].rename(f"{name} (MOS)")
+                        rank_s = df_s.set_index('Zip')['MOS Rank'].rename(f"{name} (Rank)")
+                        mos_metrics.append(mos_s)
+                        rank_metrics.append(rank_s)
                         if example_df is None:
                             example_df = df_s
                 
-                if len(comp_metrics) > 0:
-                    comp_df = pd.concat(comp_metrics, axis=1).reset_index()
-                    
+                if len(mos_metrics) > 0:
+                    st.markdown("#### Comparison by MOS Score")
+                    mos_df = pd.concat(mos_metrics, axis=1).reset_index()
                     if example_df is not None and 'Market' in example_df.columns:
-                        comp_df = comp_df.merge(example_df[['Zip', 'Market']], on='Zip', how='left')
-                        cols = ['Zip', 'Market'] + [c for c in comp_df.columns if c not in ['Zip', 'Market']]
-                        comp_df = comp_df[cols]
-                        
-                    st.dataframe(comp_df, use_container_width=True)
+                        mos_df = mos_df.merge(example_df[['Zip', 'Market']], on='Zip', how='left')
+                        cols = ['Zip', 'Market'] + [c for c in mos_df.columns if c not in ['Zip', 'Market']]
+                        mos_df = mos_df[cols]
+                    st.dataframe(mos_df, use_container_width=True)
+                    
+                    st.markdown("#### Comparison by MOS Rank")
+                    rank_df = pd.concat(rank_metrics, axis=1).reset_index()
+                    if example_df is not None and 'Market' in example_df.columns:
+                        rank_df = rank_df.merge(example_df[['Zip', 'Market']], on='Zip', how='left')
+                        cols = ['Zip', 'Market'] + [c for c in rank_df.columns if c not in ['Zip', 'Market']]
+                        rank_df = rank_df[cols]
+                    st.dataframe(rank_df, use_container_width=True)
                 else:
                     st.info("No calculated data available for the selected scenarios. (Save scenarios with loaded data first)")
 else:
