@@ -213,8 +213,9 @@ if not halt:
                 for name in selected_for_comp:
                     if st.session_state.scenarios[name].get('df') is not None:
                         df_s = st.session_state.scenarios[name]['df']
-                        mos_s = df_s.set_index('Zip')['MOS'].rename(f"{name} (MOS)")
-                        rank_s = df_s.set_index('Zip')['MOS Rank'].rename(f"{name} (Rank)")
+                        primary_id = 'Zip' if 'Zip' in df_s.columns else ('Market' if 'Market' in df_s.columns else df_s.columns[0])
+                        mos_s = df_s.set_index(primary_id)['MOS'].rename(f"{name} (MOS)")
+                        rank_s = df_s.set_index(primary_id)['MOS Rank'].rename(f"{name} (Rank)")
                         mos_metrics.append(mos_s)
                         rank_metrics.append(rank_s)
                         if example_df is None:
@@ -223,7 +224,7 @@ if not halt:
                 if len(mos_metrics) > 0:
                     st.markdown("#### Comparison by MOS Score")
                     mos_df = pd.concat(mos_metrics, axis=1).reset_index()
-                    if example_df is not None and 'Market' in example_df.columns:
+                    if example_df is not None and 'Zip' in example_df.columns and 'Market' in example_df.columns:
                         mos_df = mos_df.merge(example_df[['Zip', 'Market']], on='Zip', how='left')
                         cols = ['Zip', 'Market'] + [c for c in mos_df.columns if c not in ['Zip', 'Market']]
                         mos_df = mos_df[cols]
@@ -231,7 +232,7 @@ if not halt:
                     
                     st.markdown("#### Comparison by MOS Rank")
                     rank_df = pd.concat(rank_metrics, axis=1).reset_index()
-                    if example_df is not None and 'Market' in example_df.columns:
+                    if example_df is not None and 'Zip' in example_df.columns and 'Market' in example_df.columns:
                         rank_df = rank_df.merge(example_df[['Zip', 'Market']], on='Zip', how='left')
                         cols = ['Zip', 'Market'] + [c for c in rank_df.columns if c not in ['Zip', 'Market']]
                         rank_df = rank_df[cols]

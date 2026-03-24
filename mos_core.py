@@ -42,8 +42,9 @@ def plot_mos_quintiles(mos_df, title='MOS by ZIP — By Quintile'):
         'Q5 — Highest': '#1a9641',
     }
 
+    primary_id = 'Zip' if 'Zip' in mos_df.columns else 'Market'
     all_zips = mos_df.sort_values('MOS Rank').copy()
-    all_zips['Zip'] = all_zips['Zip'].astype(str)
+    all_zips[primary_id] = all_zips[primary_id].astype(str)
     all_zips['MOS Quintile'] = pd.qcut(
         all_zips['MOS'],
         q=5,
@@ -55,12 +56,12 @@ def plot_mos_quintiles(mos_df, title='MOS by ZIP — By Quintile'):
         subset = all_zips[all_zips['MOS Quintile'] == label].sort_values('MOS')
         color  = quintile_colors[label]
 
-        y_enc = alt.Y('Zip:N', sort=alt.SortField('MOS', order='descending'), title=None)
+        y_enc = alt.Y(f'{primary_id}:N', sort=alt.SortField('MOS', order='descending'), title=None)
         tooltip_enc = [
-            alt.Tooltip('Zip:N', title='ZIP'),
+            alt.Tooltip(f'{primary_id}:N', title=primary_id),
             alt.Tooltip('MOS:Q', title='MOS', format='.3f'),
         ]
-        if 'Market' in subset.columns:
+        if 'Market' in subset.columns and primary_id != 'Market':
             tooltip_enc.insert(1, alt.Tooltip('Market:N', title='Market'))
 
         base = alt.Chart(subset).encode(
@@ -72,7 +73,7 @@ def plot_mos_quintiles(mos_df, title='MOS by ZIP — By Quintile'):
             x=alt.X('MOS:Q', scale=alt.Scale(domain=[0, 1]), title='MOS'),
         )
 
-        text_enc = alt.Text('Market:N') if 'Market' in subset.columns else alt.Text('Zip:N')
+        text_enc = alt.Text('Market:N') if 'Market' in subset.columns else alt.Text(f'{primary_id}:N')
         labels = base.mark_text(align='left', dx=3, fontSize=9, color='#444').encode(
             x=alt.X('MOS:Q', scale=alt.Scale(domain=[0, 1])),
             text=text_enc
@@ -154,8 +155,10 @@ def mos_sensitivity(mos_df, mos_inputs: dict, perturbations=[-0.10, -0.05, 0.05,
                 'Avg Rank Shift':   round((rank_p - base_rank).abs().mean(), 2),
             })
 
-    top_n_df   = mos_df.nsmallest(top_n, 'MOS Rank')[['Zip'] + (['Market'] if 'Market' in mos_df.columns else [])]
-    top_n_zips = top_n_df['Zip'].values
+    cols_to_keep = [col for col in ['Zip', 'Market'] if col in mos_df.columns]
+    top_n_df   = mos_df.nsmallest(top_n, 'MOS Rank')[cols_to_keep]
+    primary_id = 'Zip' if 'Zip' in mos_df.columns else 'Market'
+    top_n_ids = top_n_df[primary_id].values
 
     if len(mos_fields) > 1:
         all_scenarios = [base_weights] + [
@@ -167,19 +170,17 @@ def mos_sensitivity(mos_df, mos_inputs: dict, perturbations=[-0.10, -0.05, 0.05,
     else:
         all_scenarios = [base_weights]
 
-    rank_matrix = pd.DataFrame(index=top_n_zips)
+    rank_matrix = pd.DataFrame(index=top_n_ids)
     for idx, w in enumerate(all_scenarios):
         w_sum = sum(w)
         if w_sum > 0:
             w = [val / w_sum for val in w]
         rank_s = _calc_mos(w).rank(ascending=False).astype(int)
-        rank_matrix[f's{idx}'] = rank_s.values[:len(top_n_zips)]
+        rank_matrix[f's{idx}'] = rank_s.values[:len(top_n_ids)]
 
-    stability_data = {
-        'Zip':        top_n_zips,
-    }
-    if 'Market' in top_n_df.columns:
-        stability_data['Market'] = top_n_df['Market'].values
+    stability_data = {}
+    for col in cols_to_keep:
+        stability_data[col] = top_n_df[col].values
         
     stability_data.update({
         'Base Rank':  mos_df.nsmallest(top_n, 'MOS Rank')['MOS Rank'].values,
