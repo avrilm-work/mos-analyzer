@@ -102,16 +102,18 @@ def plot_score_quintiles(score_df, title='Score by ZIP — By Quintile'):
         .configure_axis(labelFontSize=10, titleFontSize=12, grid=False)
     )
 
-def plot_baseline_comparison(score_df, x_col='Score', y_col='Mover Churn Rate', size_col='None', color_col='None'):
-    primary_id = 'Zip' if 'Zip' in score_df.columns else ('Market' if 'Market' in score_df.columns else score_df.columns[0])
+def plot_baseline_comparison(score_df, x_col='Score', y_col='Mover Churn Rate', size_col='None', color_col='None', id_cols=None):
+    if id_cols is None:
+        id_cols = ['Zip'] if 'Zip' in score_df.columns else (['Market'] if 'Market' in score_df.columns else [score_df.columns[0]])
     
-    tooltip_enc = [
-        alt.Tooltip(f'{primary_id}:N', title=primary_id),
+    tooltip_enc = [alt.Tooltip(f'{col}:N', title=col) for col in id_cols if col in score_df.columns]
+    
+    tooltip_enc.extend([
         alt.Tooltip(f'{x_col}:Q', title=x_col, format='.3f'),
         alt.Tooltip(f'{y_col}:Q', title=y_col, format='.3f'),
         alt.Tooltip(f'{size_col}:Q', title=size_col),
         alt.Tooltip(f'{color_col}:N', title=color_col),
-    ]
+    ])
 
     base = alt.Chart(score_df).encode(
         x=alt.X(f'{x_col}:Q', title=x_col, scale=alt.Scale(zero=False)),

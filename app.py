@@ -320,7 +320,7 @@ if not halt:
                                
             if len(plot_df) > 1:
                 try:
-                    chart = plot_baseline_comparison(plot_df, x_col='Score', y_col=baseline_y, size_col=size_var, color_col=color_var)
+                    chart = plot_baseline_comparison(plot_df, x_col='Score', y_col=baseline_y, size_col=size_var, color_col=color_var, id_cols=id_cols)
                     st.altair_chart(chart, use_container_width=True)
                 except Exception as e:
                     import traceback
