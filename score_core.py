@@ -137,7 +137,7 @@ def plot_baseline_comparison(score_df, x_col='Score', y_col='Mover Churn Rate', 
             fontSize=16,
             anchor='middle'
         ),
-        height=800
+        height=550
     )
 
     return chart
