@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-from score_core import calc_score, plot_score_quintiles, score_sensitivity
+from score_core import calc_score, plot_score_quintiles, score_sensitivity, plot_baseline_comparison
 
 st.set_page_config(layout="wide", page_title="Composite Score Analyzer", page_icon="📈")
 
@@ -49,7 +49,9 @@ def load_dummy_data():
         'Avg_Monthly Move Rate': np.random.uniform(0.01, 0.1, n),
         '1-2 Person HH Share': np.random.uniform(0.2, 0.8, n),
         '15-34 Age Householder Share': np.random.uniform(0.1, 0.6, n),
-        'Log Pop Density': np.random.uniform(2.0, 10.0, n)
+        'Log Pop Density': np.random.uniform(2.0, 10.0, n),
+        'Mover Churn Rate': np.random.uniform(0.01, 0.20, n),
+        'Customers': np.random.randint(10, 5000, n)
     })
     return df
 
@@ -158,7 +160,7 @@ if not halt:
         }
         st.sidebar.success(f"Scenario '{s_name}' saved! Check the Compare tab.")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Visualization", "📋 Data Table", "🔍 Sensitivity Analysis", "🔄 Compare Scenarios"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Visualization", "📋 Data Table", "🔍 Sensitivity Analysis", "🔄 Compare Scenarios", "📈 Baseline Comparison"])
 
     with tab1:
         st.subheader("Score by Quintile")
@@ -239,5 +241,95 @@ if not halt:
                     st.dataframe(rank_df, use_container_width=True)
                 else:
                     st.info("No calculated data available for the selected scenarios. (Save scenarios with loaded data first)")
+
+    with tab5:
+        st.subheader("Baseline vs Score Comparison")
+        st.caption("Use this chart to visualize how the newly calculated Composite Score correlates dynamically against actual baseline metrics.")
+        
+        # Merge score_df with original df to get all potential baseline columns
+        merge_on = [c for c in id_cols if c in score_df.columns and c in df.columns]
+        if not merge_on:
+            merge_on = [score_df.columns[0]] # Fallback
+            
+        cols_to_add = [c for c in df.columns if c not in score_df.columns]
+        merged_df = score_df.merge(df[merge_on + cols_to_add], on=merge_on, how='left')
+        
+        # Backend modification: append 'None' column for uniform mapping
+        merged_df['None'] = 1
+        
+        all_cols = ["None"] + [c for c in merged_df.columns if c != "None"]
+        numeric_only = ["None"] + [c for c in merged_df.select_dtypes(include=[np.number]).columns if c != "None"]
+        baseline_options = [c for c in numeric_only if c not in ['Score', 'Score Rank', 'None']]
+        
+        col_controls, col_plot = st.columns([1, 3])
+        
+        with col_controls:
+            baseline_y = st.selectbox(
+                "Y-Axis Baseline Metric", 
+                baseline_options, 
+                index=baseline_options.index('Mover Churn Rate') if 'Mover Churn Rate' in baseline_options else 0
+            )
+            
+            color_var = st.selectbox(
+                "Marker Color", 
+                all_cols, 
+                index=0
+            )
+            
+            size_var = st.selectbox(
+                "Marker Size", 
+                numeric_only, 
+                index=0
+            )
+            
+            st.markdown("---")
+            st.markdown("#### Custom Filtering")
+            filter_var = st.selectbox(
+                "Filter By", 
+                numeric_only, 
+                index=0
+            )
+            
+            if filter_var != "None":
+                min_raw = float(merged_df[filter_var].min())
+                max_raw = float(merged_df[filter_var].max())
+                
+                if min_raw == max_raw:
+                    custom_filter_min, custom_filter_max = min_raw, max_raw
+                    st.info(f"'{filter_var}' has no variance.")
+                else:
+                    custom_filter_min = st.number_input(
+                        f"Min {filter_var}", 
+                        min_value=min_raw, max_value=max_raw, 
+                        value=min_raw, step=(max_raw-min_raw)/100.0
+                    )
+                    custom_filter_max = st.number_input(
+                        f"Max {filter_var}", 
+                        min_value=min_raw, max_value=max_raw, 
+                        value=max_raw, step=(max_raw-min_raw)/100.0
+                    )
+            else:
+                custom_filter_min, custom_filter_max = None, None
+        
+        with col_plot:
+            # Build filtered dataframe
+            plot_df = merged_df.copy()
+            
+            if filter_var != "None" and custom_filter_min is not None:
+                plot_df = plot_df[(plot_df[filter_var] >= custom_filter_min) & (plot_df[filter_var] <= custom_filter_max)]
+                               
+            if len(plot_df) > 1:
+                try:
+                    chart = plot_baseline_comparison(plot_df, x_col='Score', y_col=baseline_y, size_col=size_var, color_col=color_var)
+                    st.altair_chart(chart, use_container_width=True)
+                except Exception as e:
+                    import traceback
+                    error_details = traceback.format_exc()
+                    st.error(f"Error plotting data: {e} \n\n {error_details}")
+            elif len(plot_df) == 1:
+                st.info("Only 1 data point passes the filters. Not enough to plot a distribution/trendline.")
+            else:
+                st.info("No data available with the current filters.")
+
 else:
     st.info("Awaiting valid Score inputs from the sidebar.")

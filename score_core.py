@@ -102,6 +102,46 @@ def plot_score_quintiles(score_df, title='Score by ZIP — By Quintile'):
         .configure_axis(labelFontSize=10, titleFontSize=12, grid=False)
     )
 
+def plot_baseline_comparison(score_df, x_col='Score', y_col='Mover Churn Rate', size_col='None', color_col='None'):
+    primary_id = 'Zip' if 'Zip' in score_df.columns else ('Market' if 'Market' in score_df.columns else score_df.columns[0])
+    
+    tooltip_enc = [
+        alt.Tooltip(f'{primary_id}:N', title=primary_id),
+        alt.Tooltip(f'{x_col}:Q', title=x_col, format='.3f'),
+        alt.Tooltip(f'{y_col}:Q', title=y_col, format='.3f'),
+        alt.Tooltip(f'{size_col}:Q', title=size_col),
+        alt.Tooltip(f'{color_col}:N', title=color_col),
+    ]
+
+    base = alt.Chart(score_df).encode(
+        x=alt.X(f'{x_col}:Q', title=x_col, scale=alt.Scale(zero=False)),
+        y=alt.Y(f'{y_col}:Q', title=y_col, scale=alt.Scale(zero=False)),
+        tooltip=tooltip_enc
+    )
+
+    color_type = 'N' if score_df[color_col].dtype == 'object' else 'Q'
+    
+    size_range = [40, 40] if size_col == 'None' else [60, 1500]
+
+    bubbles = base.mark_circle(opacity=0.6).encode(
+        size=alt.Size(f'{size_col}:Q', title=size_col, scale=alt.Scale(range=size_range)),
+        color=alt.Color(f'{color_col}:{color_type}', title=color_col)
+    )
+
+    trend = base.transform_regression(f'{x_col}', f'{y_col}').mark_line(color='black', strokeDash=[4, 4], strokeWidth=2)
+
+    chart = (bubbles + trend).properties(
+        title=alt.TitleParams(
+            text=f'{y_col} vs {x_col}',
+            subtitle=f'Sized by {size_col}, Colored by {color_col}',
+            fontSize=16,
+            anchor='middle'
+        ),
+        height=800
+    )
+
+    return chart
+
 def score_sensitivity(score_df, score_inputs: dict, perturbations=[-0.10, -0.05, 0.05, 0.10], top_n=25):
     score_fields = list(score_inputs.keys())
     base_weights = list(score_inputs.values())
