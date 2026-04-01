@@ -4,35 +4,35 @@ import altair as alt
 from sklearn.preprocessing import MinMaxScaler
 from scipy.stats import spearmanr
 
-def calc_mos(df, mos_inputs: dict, id_cols=['Market', 'Zip']):
-    mos_fields = list(mos_inputs.keys())
-    weights    = list(mos_inputs.values())
+def calc_score(df, score_inputs: dict, id_cols=['Market', 'Zip']):
+    score_fields = list(score_inputs.keys())
+    weights      = list(score_inputs.values())
 
     if round(sum(weights), 6) != 1.0:
         raise ValueError(f"Weights must sum to 1.0 — current sum: {sum(weights):.4f}")
 
     id_cols = [c for c in id_cols if c in df.columns]
 
-    mos_df = df[id_cols + mos_fields].copy()
+    score_df = df[id_cols + score_fields].copy()
 
-    null_check = mos_df[mos_fields].isnull().sum()
+    null_check = score_df[score_fields].isnull().sum()
     if null_check.any():
-        mos_df = mos_df.dropna(subset=mos_fields)
+        score_df = score_df.dropna(subset=score_fields)
 
-    scaler     = MinMaxScaler()
-    scaled_cols = [f'{f} (Scaled)' for f in mos_fields]
-    mos_df[scaled_cols] = scaler.fit_transform(mos_df[mos_fields])
+    scaler      = MinMaxScaler()
+    scaled_cols = [f'{f} (Scaled)' for f in score_fields]
+    score_df[scaled_cols] = scaler.fit_transform(score_df[score_fields])
 
-    mos_df['MOS'] = sum(
-        mos_df[col] * w for col, w in zip(scaled_cols, weights)
+    score_df['Score'] = sum(
+        score_df[col] * w for col, w in zip(scaled_cols, weights)
     )
 
-    mos_df = mos_df.sort_values('MOS', ascending=False).reset_index(drop=True)
-    mos_df['MOS Rank'] = mos_df['MOS'].rank(ascending=False).astype(int)
+    score_df = score_df.sort_values('Score', ascending=False).reset_index(drop=True)
+    score_df['Score Rank'] = score_df['Score'].rank(ascending=False).astype(int)
 
-    return mos_df
+    return score_df
 
-def plot_mos_quintiles(mos_df, title='MOS by ZIP — By Quintile'):
+def plot_score_quintiles(score_df, title='Score by ZIP — By Quintile'):
     quintile_labels = ['Q1 — Lowest', 'Q2', 'Q3', 'Q4', 'Q5 — Highest']
     quintile_colors = {
         'Q1 — Lowest':  '#d7191c',
@@ -42,24 +42,24 @@ def plot_mos_quintiles(mos_df, title='MOS by ZIP — By Quintile'):
         'Q5 — Highest': '#1a9641',
     }
 
-    primary_id = 'Zip' if 'Zip' in mos_df.columns else 'Market'
-    all_zips = mos_df.sort_values('MOS Rank').copy()
+    primary_id = 'Zip' if 'Zip' in score_df.columns else 'Market'
+    all_zips = score_df.sort_values('Score Rank').copy()
     all_zips[primary_id] = all_zips[primary_id].astype(str)
-    all_zips['MOS Quintile'] = pd.qcut(
-        all_zips['MOS'],
+    all_zips['Score Quintile'] = pd.qcut(
+        all_zips['Score'],
         q=5,
         labels=quintile_labels
     )
 
     charts = []
     for label in quintile_labels:
-        subset = all_zips[all_zips['MOS Quintile'] == label].sort_values('MOS')
+        subset = all_zips[all_zips['Score Quintile'] == label].sort_values('Score')
         color  = quintile_colors[label]
 
-        y_enc = alt.Y(f'{primary_id}:N', sort=alt.SortField('MOS', order='descending'), title=None)
+        y_enc = alt.Y(f'{primary_id}:N', sort=alt.SortField('Score', order='descending'), title=None)
         tooltip_enc = [
             alt.Tooltip(f'{primary_id}:N', title=primary_id),
-            alt.Tooltip('MOS:Q', title='MOS', format='.3f'),
+            alt.Tooltip('Score:Q', title='Score', format='.3f'),
         ]
         if 'Market' in subset.columns and primary_id != 'Market':
             tooltip_enc.insert(1, alt.Tooltip('Market:N', title='Market'))
@@ -70,16 +70,16 @@ def plot_mos_quintiles(mos_df, title='MOS by ZIP — By Quintile'):
         )
 
         bars = base.mark_bar(color=color).encode(
-            x=alt.X('MOS:Q', scale=alt.Scale(domain=[0, 1]), title='MOS'),
+            x=alt.X('Score:Q', scale=alt.Scale(domain=[0, 1]), title='Score'),
         )
 
         text_enc = alt.Text('Market:N') if 'Market' in subset.columns else alt.Text(f'{primary_id}:N')
         labels = base.mark_text(align='left', dx=3, fontSize=9, color='#444').encode(
-            x=alt.X('MOS:Q', scale=alt.Scale(domain=[0, 1])),
+            x=alt.X('Score:Q', scale=alt.Scale(domain=[0, 1])),
             text=text_enc
         )
 
-        range_label = f'MOS: {subset["MOS"].min():.2f} – {subset["MOS"].max():.2f}'
+        range_label = f'Score: {subset["Score"].min():.2f} – {subset["Score"].max():.2f}'
 
         chart = (bars + labels).properties(
             title=alt.TitleParams(
@@ -102,19 +102,19 @@ def plot_mos_quintiles(mos_df, title='MOS by ZIP — By Quintile'):
         .configure_axis(labelFontSize=10, titleFontSize=12, grid=False)
     )
 
-def mos_sensitivity(mos_df, mos_inputs: dict, perturbations=[-0.10, -0.05, 0.05, 0.10], top_n=25):
-    mos_fields   = list(mos_inputs.keys())
-    base_weights = list(mos_inputs.values())
-    scaled_cols  = [f'{f} (Scaled)' for f in mos_fields]
-    base_rank    = mos_df['MOS Rank']
+def score_sensitivity(score_df, score_inputs: dict, perturbations=[-0.10, -0.05, 0.05, 0.10], top_n=25):
+    score_fields = list(score_inputs.keys())
+    base_weights = list(score_inputs.values())
+    scaled_cols  = [f'{f} (Scaled)' for f in score_fields]
+    base_rank    = score_df['Score Rank']
 
-    def _calc_mos(weights):
-        return sum(mos_df[col] * w for col, w in zip(scaled_cols, weights))
+    def _calc_score(weights):
+        return sum(score_df[col] * w for col, w in zip(scaled_cols, weights))
 
     loo_results = []
-    for i, field in enumerate(mos_fields):
-        remaining   = [j for j in range(len(mos_fields)) if j != i]
-        new_w       = [0.0] * len(mos_fields)
+    for i, field in enumerate(score_fields):
+        remaining   = [j for j in range(len(score_fields)) if j != i]
+        new_w       = [0.0] * len(score_fields)
         if len(remaining) > 0:
             redistribute = base_weights[i] / len(remaining)
             for j in remaining:
@@ -122,7 +122,7 @@ def mos_sensitivity(mos_df, mos_inputs: dict, perturbations=[-0.10, -0.05, 0.05,
         else:
             new_w[i] = 1.0
 
-        rank_loo      = _calc_mos(new_w).rank(ascending=False).astype(int)
+        rank_loo      = _calc_score(new_w).rank(ascending=False).astype(int)
         rank_corr, _  = spearmanr(base_rank, rank_loo)
         loo_results.append({
             'Dropped Input':    field,
@@ -132,7 +132,7 @@ def mos_sensitivity(mos_df, mos_inputs: dict, perturbations=[-0.10, -0.05, 0.05,
         })
 
     perturb_results = []
-    for i, field in enumerate(mos_fields):
+    for i, field in enumerate(score_fields):
         for delta in perturbations:
             new_w    = base_weights.copy()
             new_w[i] = round(base_weights[i] + delta, 2)
@@ -140,12 +140,12 @@ def mos_sensitivity(mos_df, mos_inputs: dict, perturbations=[-0.10, -0.05, 0.05,
             if new_w[i] < 0 or new_w[i] > 1:
                 continue
 
-            remaining = [j for j in range(len(mos_fields)) if j != i]
+            remaining = [j for j in range(len(score_fields)) if j != i]
             if len(remaining) > 0:
                 for j in remaining:
                     new_w[j] = round(base_weights[j] - delta / len(remaining), 4)
 
-            rank_p       = _calc_mos(new_w).rank(ascending=False).astype(int)
+            rank_p       = _calc_score(new_w).rank(ascending=False).astype(int)
             rank_corr, _ = spearmanr(base_rank, rank_p)
             perturb_results.append({
                 'Input':            field,
@@ -155,16 +155,16 @@ def mos_sensitivity(mos_df, mos_inputs: dict, perturbations=[-0.10, -0.05, 0.05,
                 'Avg Rank Shift':   round((rank_p - base_rank).abs().mean(), 2),
             })
 
-    cols_to_keep = [col for col in ['Zip', 'Market'] if col in mos_df.columns]
-    top_n_df   = mos_df.nsmallest(top_n, 'MOS Rank')[cols_to_keep]
-    primary_id = 'Zip' if 'Zip' in mos_df.columns else 'Market'
-    top_n_ids = top_n_df[primary_id].values
+    cols_to_keep = [col for col in ['Zip', 'Market'] if col in score_df.columns]
+    top_n_df   = score_df.nsmallest(top_n, 'Score Rank')[cols_to_keep]
+    primary_id = 'Zip' if 'Zip' in score_df.columns else 'Market'
+    top_n_ids  = top_n_df[primary_id].values
 
-    if len(mos_fields) > 1:
+    if len(score_fields) > 1:
         all_scenarios = [base_weights] + [
-            [base_weights[j] + (delta if j == i else -delta / (len(mos_fields) - 1))
-             for j in range(len(mos_fields))]
-            for i in range(len(mos_fields))
+            [base_weights[j] + (delta if j == i else -delta / (len(score_fields) - 1))
+             for j in range(len(score_fields))]
+            for i in range(len(score_fields))
             for delta in perturbations
         ]
     else:
@@ -175,7 +175,7 @@ def mos_sensitivity(mos_df, mos_inputs: dict, perturbations=[-0.10, -0.05, 0.05,
         w_sum = sum(w)
         if w_sum > 0:
             w = [val / w_sum for val in w]
-        rank_s = _calc_mos(w).rank(ascending=False).astype(int)
+        rank_s = _calc_score(w).rank(ascending=False).astype(int)
         rank_matrix[f's{idx}'] = rank_s.values[:len(top_n_ids)]
 
     stability_data = {}
@@ -183,7 +183,7 @@ def mos_sensitivity(mos_df, mos_inputs: dict, perturbations=[-0.10, -0.05, 0.05,
         stability_data[col] = top_n_df[col].values
         
     stability_data.update({
-        'Base Rank':  mos_df.nsmallest(top_n, 'MOS Rank')['MOS Rank'].values,
+        'Base Rank':  score_df.nsmallest(top_n, 'Score Rank')['Score Rank'].values,
         'Min Rank':   rank_matrix.min(axis=1).values,
         'Max Rank':   rank_matrix.max(axis=1).values,
         'Rank Range': rank_matrix.max(axis=1).values - rank_matrix.min(axis=1).values,
